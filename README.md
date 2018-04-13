@@ -3,6 +3,54 @@ Self-Driving Car Engineer Nanodegree Program
 
 ---
 
+## Implementation
+### The model
+The kinematic model has its state vector as:
+x    - vehicle's x coordinate
+y    - vehicle's y coordinate
+psi  - orientation angle
+v    - velocity
+cte  - cross track error
+epsi - error on orientation angle
+
+and its controls as:
+delta - steering angle
+a     - acceleration
+
+State transition fomula:
+![formula](./formula.png)
+
+The cost of the model takes various factors into account, e.g. cte, epsi, change in control, etc.
+One special cost I found extremely useful is to heavily penlize acceleration / encourage throttle
+during turning (large epsi). This will make sure vehile will turn in low speed without rushing off the track.
+
+
+### Timestep Length and Elapsed Duration (N & dt)
+dt defines how granular the model predicts the future control.
+dt * N defines the total time that model predicts the future.
+If dt * N is too large, the model will try to fit into far future, which is useless and yields
+larger error in near future.
+Given constant dt * N, if dt is too small, the model will have many steps (N) to calaculate, which
+causes more computation overhead. If dt is too large, polynomial fitting will have large error due
+to insufficient data points.
+
+I tried various combinations like (20 & 0.05), (10, 0.05), (20 & 0.1), etc.
+Finally I choose (10 & 0.1) since it predicts adequate amount of future time (1s)
+and works the best in the simulation.
+
+
+### Polynomial Fitting and MPC Preprocessing
+The waypoints and orientation is preprocessed to vehicle's perspective, with x=0, y=0, psi=0.
+
+
+### Model Predictive Control with Latency
+The model predicts 10 steps (N=9 and N_delay=1) with dt = 100ms just like the case without latency.
+In order to take 100ms latency into account, the controls at second step is used instead of
+the one at first step.
+
+
+---
+
 ## Dependencies
 
 * cmake >= 3.5
