@@ -6,11 +6,8 @@
 using CppAD::AD;
 
 // TODO: Set the timestep length and duration
-const size_t N = 9;
+const size_t N = 10;
 const double dt = 0.1;
-// Number of steps delayed: 100ms / dt
-const size_t N_delay = (size_t) round(0.1 / dt);
-const size_t N_total = N + N_delay;
 
 // This value assumes the model presented in the classroom is used.
 //
@@ -22,23 +19,23 @@ const size_t N_total = N + N_delay;
 // presented in the classroom matched the previous radius.
 //
 // This is the length from front to CoG that has a similar radius.
-const double Lf = 2.67;
+double Lf = 2.67;
 
 // Both the reference cross track and orientation errors are 0.
 // The reference velocity is set to 40 mph.
-const double ref_v = 60;
+const double ref_v = 80;
 
 // The solver takes all the state variables and actuator
 // variables in a singular vector. Thus, we should to establish
 // when one variable starts and another ends to make our lifes easier.
 const size_t x_start = 0;
-const size_t y_start = x_start + N_total;
-const size_t psi_start = y_start + N_total;
-const size_t v_start = psi_start + N_total;
-const size_t cte_start = v_start + N_total;
-const size_t epsi_start = cte_start + N_total;
-const size_t delta_start = epsi_start + N_total;
-const size_t a_start = delta_start + N_total - 1;
+const size_t y_start = x_start + N;
+const size_t psi_start = y_start + N;
+const size_t v_start = psi_start + N;
+const size_t cte_start = v_start + N;
+const size_t epsi_start = cte_start + N;
+const size_t delta_start = epsi_start + N;
+const size_t a_start = delta_start + N - 1;
 
 class FG_eval {
  public:
@@ -57,17 +54,16 @@ class FG_eval {
     // Any additions to the cost should be added to `fg[0]`.
     fg[0] = 0;
 
-    const int w_cte = 3000;
-    const int w_epsi = 3000;
+    const int w_cte = 1000;
+    const int w_epsi = 1000;
     const int w_ref = 1;
-    const int w_delta = 5;
-    const int w_a = 5;
-    const int w_a_extra = 700;
-    const int w_delta_gap = 200;
-    const int w_a_gap = 10;
+    const int w_delta = 50;
+    const int w_a = 50;
+    const int w_delta_gap = 200000;
+    const int w_a_gap = 5000;
 
     // The part of the cost based on the reference state.
-    for (size_t t = 0; t < N_total; t++)
+    for (size_t t = 0; t < N; t++)
     {
       fg[0] += w_cte * CppAD::pow(vars[cte_start + t], 2);
       fg[0] += w_epsi * CppAD::pow(vars[epsi_start + t], 2);
@@ -75,15 +71,13 @@ class FG_eval {
     }
 
     // Minimize the use of actuators.
-    for (size_t t = 0; t < N_total - 1; t++) {
+    for (size_t t = 0; t < N - 1; t++) {
       fg[0] += w_delta * CppAD::pow(vars[delta_start + t], 2);
       fg[0] += w_a * CppAD::pow(vars[a_start + t], 2);
-      // preventing speed and steering being large at the same time
-      fg[0] += w_a_extra * CppAD::pow((vars[a_start + t] + 1) * vars[epsi_start + t], 2);
     }
 
     // Minimize the value gap between sequential actuations.
-    for (size_t t = 0; t < N_total - 2; t++) {
+    for (size_t t = 0; t < N - 2; t++) {
       fg[0] += w_delta_gap * CppAD::pow(vars[delta_start + t + 1] - vars[delta_start + t], 2);
       fg[0] += w_a_gap * CppAD::pow(vars[a_start + t + 1] - vars[a_start + t], 2);
     }
@@ -102,7 +96,7 @@ class FG_eval {
     fg[1 + epsi_start] = vars[epsi_start];
 
     // The rest of the constraints
-    for (size_t t = 1; t < N_total; t++) {
+    for (size_t t = 1; t < N; t++) {
       // The state at time t+1 .
       AD<double> x1 = vars[x_start + t];
       AD<double> y1 = vars[y_start + t];
@@ -122,8 +116,8 @@ class FG_eval {
       AD<double> delta0 = vars[delta_start + t - 1];
       AD<double> a0 = vars[a_start + t - 1];
 
-      AD<double> f0 = coeffs[0] + coeffs[1] * x0;
-      AD<double> psides0 = CppAD::atan(coeffs[1]);
+      AD<double> f0 = coeffs[0] + coeffs[1] * x0 + coeffs[2] * CppAD::pow(x0, 2) + coeffs[3] * CppAD::pow(x0, 3);
+      AD<double> psides0 = CppAD::atan(coeffs[1] + 2 * coeffs[2] * x0 + 3 * coeffs[3] * CppAD::pow(x0, 2));
 
       // Here's `x` to get you started.
       // The idea here is to constraint this value to be 0.
@@ -139,10 +133,8 @@ class FG_eval {
       fg[1 + y_start + t] = y1 - (y0 + v0 * CppAD::sin(psi0) * dt);
       fg[1 + psi_start + t] = psi1 - (psi0 - v0 * delta0 / Lf * dt);
       fg[1 + v_start + t] = v1 - (v0 + a0 * dt);
-      fg[1 + cte_start + t] =
-          cte1 - ((f0 - y0) + (v0 * CppAD::sin(epsi0) * dt));
-      fg[1 + epsi_start + t] =
-          epsi1 - ((psi0 - psides0) + v0 * delta0 / Lf * dt);
+      fg[1 + cte_start + t] = cte1 - ((f0 - y0) + (v0 * CppAD::sin(epsi0) * dt));
+      fg[1 + epsi_start + t] = epsi1 - ((psi0 - psides0) - v0 * delta0 / Lf * dt);
     }
   }
 };
@@ -150,30 +142,28 @@ class FG_eval {
 //
 // MPC class definition implementation.
 //
-MPC::MPC() {
-  std::cout << "Delay for " << N_delay << " step" << std::endl;
-}
+MPC::MPC() {}
 MPC::~MPC() {}
 
 vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs) {
   bool ok = true;
   typedef CPPAD_TESTVECTOR(double) Dvector;
 
-  double x = state[0];
-  double y = state[1];
-  double psi = state[2];
-  double v = state[3];
-  double cte = state[4];
-  double epsi = state[5];
+  const double x = state[0];
+  const double y = state[1];
+  const double psi = state[2];
+  const double v = state[3];
+  const double cte = state[4];
+  const double epsi = state[5];
 
   // TODO: Set the number of model variables (includes both states and inputs).
   // For example: If the state is a 4 element vector, the actuators is a 2
   // element vector and there are 10 timesteps. The number of variables is:
   //
   // 4 * 10 + 2 * 9
-  size_t n_vars = N_total * 6 + (N_total - 1) * 2;
+  size_t n_vars = N * 6 + (N - 1) * 2;
   // TODO: Set the number of constraints
-  size_t n_constraints = N_total * 6;
+  size_t n_constraints = N * 6;
 
   // Initial value of the independent variables.
   // SHOULD BE 0 besides initial state.
@@ -281,11 +271,10 @@ vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs) {
   // creates a 2 element double vector.
   vector<double> res;
   // 1st element is steering, 2nd element is accerlation
-  // using controls after 100ms
-  res.push_back(solution.x[delta_start + N_delay]);
-  res.push_back(solution.x[a_start + N_delay]);
+  res.push_back(solution.x[delta_start]);
+  res.push_back(solution.x[a_start]);
 
-  for (size_t i = N_delay; i < N_total; i++) {
+  for (size_t i = 0; i < N; i++) {
     res.push_back(solution.x[x_start + i]);
     res.push_back(solution.x[y_start + i]);
   }

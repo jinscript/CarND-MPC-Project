@@ -20,11 +20,6 @@ a     - acceleration
 State transition fomula:
 ![formula](./formula.png)
 
-The cost of the model takes various factors into account, e.g. cte, epsi, change in control, etc.
-One special cost I found extremely useful is to heavily penlize acceleration / encourage throttle
-during turning (large epsi). This will make sure vehile will turn in low speed without rushing off the track.
-
-
 ### Timestep Length and Elapsed Duration (N & dt)
 dt defines how granular the model predicts the future control.
 dt * N defines the total time that model predicts the future.
@@ -44,9 +39,8 @@ The waypoints and orientation is preprocessed to vehicle's perspective, with x=0
 
 
 ### Model Predictive Control with Latency
-The model predicts 10 steps (N=9 and N_delay=1) with dt = 100ms just like the case without latency.
-In order to take 100ms latency into account, the controls at second step is used instead of
-the one at first step.
+In order to take 100ms latency into account, vehicle state predicted after 100ms is passed into
+the solver.
 
 
 ---

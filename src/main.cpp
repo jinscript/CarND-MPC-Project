@@ -91,6 +91,8 @@ int main() {
           double py = j[1]["y"];
           double psi = j[1]["psi"];
           double v = j[1]["speed"];
+          double delta= j[1]["steering_angle"];
+          double a = j[1]["throttle"];
           /*
           * TODO: Calculate steering angle and throttle using MPC.
           *
@@ -100,23 +102,38 @@ int main() {
 
           // transform points into vehicle's perspective
           // px, py, psi = 0
-          vector<double> ptsx_transformed;
-          vector<double> ptsy_transformed;
+          auto ptsx_transformed = Eigen::VectorXd(ptsx.size());
+          auto ptsy_transformed = Eigen::VectorXd(ptsy.size());
+
           for (size_t i = 0; i < ptsx.size(); i++) {
             double dx = ptsx[i] - px;
             double dy = ptsy[i] - py;
-            ptsx_transformed.push_back(dx * cos(-psi) - dy * sin(-psi));
-            ptsy_transformed.push_back(dx * sin(-psi) + dy * cos(-psi));
+            ptsx_transformed[i] = dx * cos(-psi) - dy * sin(-psi);
+            ptsy_transformed[i] = dx * sin(-psi) + dy * cos(-psi);
           }
-          Eigen::Map<Eigen::VectorXd> ptsx_(&ptsx_transformed[0], 6);
-          Eigen::Map<Eigen::VectorXd> ptsy_(&ptsy_transformed[0], 6);
 
-          auto coeffs = polyfit(ptsx_, ptsy_, 3);
-          double cte = polyeval(coeffs, 0);
-          double epsi = -atan(coeffs[1]);
+          auto coeffs = polyfit(ptsx_transformed, ptsy_transformed, 3);
 
+          // initial state
+          double x0 = 0;
+          double y0 = 0;
+          double psi0 = 0;
+          double cte0 = polyeval(coeffs, 0);
+          double epsi0 = -atan(coeffs[1]);
+
+          // derive state after 0.1 to accomodate latency
           Eigen::VectorXd state(6);
-          state << 0, 0, 0, v, cte, epsi;
+
+          // 0.1s delay
+          const double t_delay = 0.1;
+          double x_delayed = x0 + v * cos(psi0) * t_delay;
+          double y_delayed = y0 + v * sin(psi0) * t_delay;
+          double psi_delayed = psi0 - v * delta * t_delay / mpc.Lf;
+          double v_delayed = v + a * t_delay;
+          double cte_delayed = cte0 + v * sin(epsi0) * t_delay;
+          double epsi_delayed = epsi0 - v * atan(coeffs[1]) * t_delay / mpc.Lf;
+          state << x_delayed, y_delayed, psi_delayed, v_delayed, cte_delayed, epsi_delayed;
+
           auto vars = mpc.Solve(state, coeffs);
           double steer_value = vars[0];
           double throttle_value = vars[1];
@@ -166,7 +183,7 @@ int main() {
           //
           // NOTE: REMEMBER TO SET THIS TO 100 MILLISECONDS BEFORE
           // SUBMITTING.
-          this_thread::sleep_for(chrono::milliseconds(100));
+          // this_thread::sleep_for(chrono::milliseconds(100));
           ws.send(msg.data(), msg.length(), uWS::OpCode::TEXT);
         }
       } else {
