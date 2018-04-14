@@ -6,15 +6,15 @@ Self-Driving Car Engineer Nanodegree Program
 ## Implementation
 ### The model
 The kinematic model has its state vector as:
-x    - vehicle's x coordinate
-y    - vehicle's y coordinate
-psi  - orientation angle
-v    - velocity
-cte  - cross track error
+x    - vehicle's x coordinate<br/>
+y    - vehicle's y coordinate<br/>
+psi  - orientation angle<br/>
+v    - velocity<br/>
+cte  - cross track error<br/>
 epsi - error on orientation angle
 
 and its controls as:
-delta - steering angle
+delta - steering angle<br/>
 a     - acceleration
 
 State transition fomula:
